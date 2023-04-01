@@ -1,30 +1,33 @@
 struct StaffMatcher {
-    area_size: (u16, u16),
-    density_arr: Vec<u8>,
+    area_size: (usize, usize),
+    pixel_arr: Vec<Vec<u8>>,
 }
 
 impl StaffMatcher {
-    fn new(width: u16, height: u16) -> StaffMatcher {
+    fn new(width: usize, height: usize) -> StaffMatcher {
         StaffMatcher {
             area_size: (width, height),
-            density_arr: vec![],
+            pixel_arr: vec![vec![0u8; width]; height],
         }        
     }
     fn match_staff(&self) -> Result<bool, StaffMatchError> {
-        if self.density_arr.len() == 0 {
+        if self.pixel_arr.len() == 0 {
             return Err(StaffMatchError::IsEmpty);
         }
         Ok(true)
     }
-    fn receive_point(&mut self, x: u16, y: u16) {
-        todo!("Add code to compute density per continuous line")
+    fn add_pixel(&mut self, w: usize, h: usize) {
+        if let Some(line) = self.pixel_arr.get_mut(h) {
+            if let Some(column) = line.get_mut(w) {
+                *column = 1;
+            }
+        }
     }
 }
 
 #[derive(PartialEq, Debug)]
 enum StaffMatchError {
-    AreaNotBigEnough,
-    WrongLineNumber,
+    OutOfBounds,
     IsEmpty,
 }
 
@@ -35,9 +38,23 @@ fn main() {
 
 
 #[test]
-fn empty_row_arr() {
+fn test_empty_row_arr() {
 
     let matcher = StaffMatcher::new(0, 0);
 
     assert_eq!(Err(StaffMatchError::IsEmpty), matcher.match_staff());    
+}
+
+#[test]
+fn test_add_point() {
+
+    let mut matcher = StaffMatcher::new(10, 1);
+
+    for p in 0..10 {
+        matcher.add_pixel(p, 0);
+    }
+
+    assert_eq!(vec![1; 10], matcher.pixel_arr[0]);
+
+      
 }
