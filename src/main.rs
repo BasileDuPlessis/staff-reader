@@ -97,7 +97,7 @@ impl StaffMatcher {
         
     }
 
-    fn add_black_pixel(&mut self, x: usize, y: usize) {
+    fn add_black_pixel(&mut self, x: &usize, y: &usize) {
         if let Some(pixel) = self.pixel_arr.get_mut(y * self.width + x) {
             *pixel = true;
         }
@@ -115,52 +115,82 @@ fn main() {
     println!("Hello, world!");
 }
 
+#[cfg(test)]
+mod tests {
 
-#[test]
-fn test_empty_row_arr() {
+    use super::{StaffMatchError, StaffMatcher, StaffZone};
+    
+    fn generate_staff_image(pattern: Vec<i32>, width: usize) 
+        -> (Vec<(usize, usize)>, usize) {
+        
+        let mut result:Vec<(usize, usize)> = Vec::new();
+        let mut y:usize = 0;
 
-    let matcher = StaffMatcher::new(0, 0);
-
-    assert_eq!(Err(StaffMatchError::IsEmpty), matcher.match_staff());
-
-}
-
-#[test]
-fn test_add_point() {
-
-    let mut matcher = StaffMatcher::new(10, 1);
-
-    for x in 0..10 {
-        matcher.add_black_pixel(x, 0);
-    }
-
-    assert_eq!(vec![true; 10], matcher.pixel_arr);      
-}
-
-#[test]
-fn test_staff_matched() {
-    let mut matcher = StaffMatcher::new(5,10);
-    let mut y = 0;
-
-    for y in 0..10 {
-        if y % 2 == 0 {continue;}
-        for x in 0..5 {
-            matcher.add_black_pixel(x, y);
+        for p in pattern {
+            let height = p.abs() as usize;
+            for y in y..(y + height) {
+                 if p > 0 {
+                     (0..width).for_each(|x| result.push((x, y)));
+                 }
+            }
+            y += height;
         }
+        
+        (result, y)
+    } 
+
+    #[test]
+    fn test_empty_row_arr() {
+
+        let matcher = StaffMatcher::new(0, 0);
+
+        assert_eq!(Err(StaffMatchError::IsEmpty), matcher.match_staff());
+
     }
 
-    let result = vec!(vec!(
-        StaffZone::Line(1),
-        StaffZone::Spacing(1),
-        StaffZone::Line(1),
-        StaffZone::Spacing(1),
-        StaffZone::Line(1),
-        StaffZone::Spacing(1),
-        StaffZone::Line(1),
-        StaffZone::Spacing(1),
-        StaffZone::Line(1),
-    ));
+    #[test]
+    fn test_add_point() {
+
+        let mut matcher = StaffMatcher::new(10, 1);
+
+        for x in 0..10 {
+            matcher.add_black_pixel(&x, &0);
+        }
+
+        assert_eq!(vec![true; 10], matcher.pixel_arr);      
+    }
+
+    #[test]
+    fn test_staff_matched() {
+        
+        let width = 10;
+        let pattern = vec!(-2, 3, -5, 3, -5, 3, -5, 3, -5, 3, -2);
+
+        let (pixel_arr, height) = generate_staff_image(
+            pattern,
+            width
+        );
+
+        let mut matcher = StaffMatcher::new(
+            width,
+            height
+        );
+
+        pixel_arr.iter().for_each(|(x, y)| matcher.add_black_pixel(x, y));
+        
+        let result = vec!(vec!(
+            StaffZone::Line(3),
+            StaffZone::Spacing(5),
+            StaffZone::Line(3),
+            StaffZone::Spacing(5),
+            StaffZone::Line(3),
+            StaffZone::Spacing(5),
+            StaffZone::Line(3),
+            StaffZone::Spacing(5),
+            StaffZone::Line(3),
+        ));
 
 
-    assert_eq!(Ok(result), matcher.match_staff());
+        assert_eq!(Ok(result), matcher.match_staff());
+    }
 }
