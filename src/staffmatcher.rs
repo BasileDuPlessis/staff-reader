@@ -4,7 +4,6 @@ enum StaffZone {
     Spacing(usize),    
 }
 
-
 #[derive(Debug)]
 struct StaffMatcher {
     width: usize,
