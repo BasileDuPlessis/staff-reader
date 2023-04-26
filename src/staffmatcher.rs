@@ -168,8 +168,15 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn test_prepare_panic_if_empty_area() {
-        let mut matcher = StaffMatcher::new(0, 0);
+    fn test_prepare_panic_if_null_width() {
+        let mut matcher = StaffMatcher::new(0, 10);
+        matcher.prepare();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_prepare_panic_if_null_height() {
+        let mut matcher = StaffMatcher::new(10, 0);
         matcher.prepare();
     }
 
@@ -187,21 +194,23 @@ mod tests {
 
     #[test]
     fn test_staff_matched() {
+    
+
+        let mut matcher = StaffMatcher::new(10, 40);
         
-        let width = 10;
-        let pattern = vec!(-2, 3, -5, 3, -5, 3, -5, 3, -5, 3, -2);
-
-        let (pixel_arr, height) = generate_staff_image(
-            pattern,
-            width
+        matcher.zone_arr = vec!(
+            StaffZone::Spacing(2),
+            StaffZone::Line(3),
+            StaffZone::Spacing(5),
+            StaffZone::Line(3),
+            StaffZone::Spacing(5),
+            StaffZone::Line(3),
+            StaffZone::Spacing(5),
+            StaffZone::Line(3),
+            StaffZone::Spacing(5),
+            StaffZone::Line(3),
+            StaffZone::Spacing(2),
         );
-
-        let mut matcher = StaffMatcher::new(
-            width,
-            height
-        );
-
-        pixel_arr.iter().for_each(|(x, y)| matcher.add_black_pixel(x, y));
         
         let result = vec!(vec!(
             StaffZone::Line(3),
@@ -215,14 +224,14 @@ mod tests {
             StaffZone::Line(3),
         ));
 
-        assert_eq!(Ok(result), matcher.prepare().match_staff());
+        assert_eq!(Ok(result), matcher.match_staff());
     }
 
     #[test]
     fn test_two_staff_matched() {
         
         let width = 10;
-        let pattern = vec!(-2, 3, -5, 3, -5, 3, -5, 3, -5, 3, -2, -4, 2, -2, 2, -2, 2, -2, 2, -2, 2);
+        let pattern = vec!(-2, 3, -4, 3, -5, 3, -5, 3, -5, 3, -5, 3, -2, -4, 2, -2, 2, -2, 2, -2, 2, -2, 2);
 
         let (pixel_arr, height) = generate_staff_image(
             pattern,
