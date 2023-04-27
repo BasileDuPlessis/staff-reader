@@ -5,31 +5,71 @@ enum LineDetectError {
     NoLines,
 }
 
-
-
-fn detect_lines(image: ImageBuffer<Luma<u8>, Vec<u8>>) -> Result<usize, LineDetectError> {
-
-    let image_width = image.width();
-    let image_height = image.height();
-    
-    let pattern_width = image_width / 10;
-    let pattern_height = 1;
-
-    for y in 0..=(image_height-pattern_height) {
-        for x in 0..=(image_width-pattern_width) {
-            match image
-                .view(x, y, pattern_width, pattern_height)
-                .pixels()
-                .find(|(_, _, l)| l.0[0] > 128u8) {
-                    Some(_) => continue,
-                    _ => println!("Black pixel @ x:{}, y:{}", x + pattern_width/2, y),
-                }           
-        }        
-    }
-    
-
-    Ok(0)
+struct ImgPatternMatcher {
+    pattern_width: u32,
+    pattern_height: u32,
+    image: ImageBuffer<Luma<u8>, Vec<u8>>,
 }
+
+type Pixel = (u32, u32);
+
+impl ImgPatternMatcher {
+    fn new(image: ImageBuffer<Luma<u8>, Vec<u8>>) -> ImgPatternMatcher {
+        ImgPatternMatcher {
+            pattern_width: 5,
+            pattern_height: 1,
+            image
+        }
+    }
+    fn iter(&self) -> MatchedPixels {
+        MatchedPixels {
+            img_pattern_match: self,
+            x: 0,
+            y: 0,
+        }
+    }
+}
+
+struct MatchedPixels<'a> {
+    img_pattern_match: &'a ImgPatternMatcher,
+    x: u32,
+    y: u32,
+}
+
+impl<'a> Iterator for MatchedPixels<'a> {
+    type Item = Pixel;
+
+    fn next(&mut self) -> Option<Self::Item> {
+
+        loop {
+            let result= match self.img_pattern_match.image
+            .view(self.x, self.y, self.img_pattern_match.pattern_width, self.img_pattern_match.pattern_height)
+            .pixels()
+            .find(|(_, _, l)| l.0[0] > 128u8) {
+                Some(_) => None,
+                _ => Some((self.x, self.y)),
+            };
+
+            if self.x == (self.img_pattern_match.image.width() - self.img_pattern_match.pattern_width) {
+                self.x = 0;
+                if self.y <= (self.img_pattern_match.image.height() - self.img_pattern_match.pattern_height) {
+                    self.y += 1;
+                } else {
+                    return None;
+                }
+            } else {
+                self.x += 1;
+            }
+
+            match result {
+                Some(_) => return result,
+                _ => continue,
+            }
+        }
+
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -50,11 +90,15 @@ mod tests {
     }
 
     #[test]
-    fn test_detect_one_line() {
+    fn test_iter_on_matcher() {
         let image = generate_image_with_lines();
-        detect_lines(image);
-        //assert_eq!(10, detect_lines(image).unwrap());
+        let img_pattern_match = ImgPatternMatcher::new(image);
+        let mut iter = img_pattern_match.iter();
 
+        while let Some(pixel) = iter.next() {
+            println!("Matched pixel: {}, {}", pixel.0, pixel.1);
+        }
     }
+
 
 }
