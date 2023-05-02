@@ -2,7 +2,11 @@ use image::{ImageBuffer, Luma, GenericImageView};
 
 
 enum Pattern {
-    Line(u32, u32, Vec<u8>),
+    Staff(u32, u32, Vec<u8>),
+}
+
+enum MatchingMode {
+    Perfect,
 }
 
 struct ImgPatternMatcher {
@@ -10,6 +14,7 @@ struct ImgPatternMatcher {
     pattern_height: u32,
     pattern_vec: Vec<u8>,
     image: ImageBuffer<Luma<u8>, Vec<u8>>,
+    matching_mode: MatchingMode
 }
 
 type Pixel = (u32, u32);
@@ -17,7 +22,7 @@ type Pixel = (u32, u32);
 impl ImgPatternMatcher {
     fn new(image: ImageBuffer<Luma<u8>, Vec<u8>>, pattern: Pattern) -> ImgPatternMatcher {
         match pattern {
-            Pattern::Line(w, h, vec) => {
+            Pattern::Staff(w, h, vec) => {
                 assert!(w * h == vec.len() as u32, "Pattern size do not match pattern content");
                 assert!(w % 2 == 1 && h % 2 == 1, "Pattern width and height should be odd");
                 assert!(image.width() > w && image.height() > h, "Pattern cannot be larger than image");
@@ -25,7 +30,8 @@ impl ImgPatternMatcher {
                     pattern_width: w,
                     pattern_height: h,
                     pattern_vec: vec,
-                    image
+                    image,
+                    matching_mode: MatchingMode::Perfect,
                 }
             },
             _ => todo!("Pattern not implemented")
@@ -62,7 +68,13 @@ impl<'a> Iterator for MatchedPixels<'a> {
                 .zip(self.matcher.pattern_vec.iter())
                 .find(
                     |((_, _, subimage_pixel), pattern_pixel)|
-                    subimage_pixel.0[0] > 128u8 && **pattern_pixel < 128u8 || subimage_pixel.0[0] < 128u8 && **pattern_pixel > 128u8 
+                    match self.matcher.matching_mode {
+                        MatchingMode::Perfect => {
+                            subimage_pixel.0[0] > 128u8 && **pattern_pixel < 128u8
+                            ||
+                            subimage_pixel.0[0] < 128u8 && **pattern_pixel > 128u8 
+                        },
+                    }                    
                 ) {
                     Some(_) => None,
                     None => Some((self.x + (self.matcher.pattern_width - 1) / 2, self.y + (self.matcher.pattern_height - 1) / 2)),
@@ -79,8 +91,8 @@ impl<'a> Iterator for MatchedPixels<'a> {
             }
 
             match matched_pixel {
-                Some(_) => return matched_pixel,
-                _ => continue,
+                None => continue,
+                _ => return matched_pixel,
             }
         }
 
@@ -109,7 +121,7 @@ mod tests {
     #[test]
     fn test_iter_on_matcher() {
         let image = generate_image_with_lines();
-        let pattern = Pattern::Line(5, 1, vec![0; 5]);
+        let pattern = Pattern::Staff(5, 1, vec![0; 5]);
         let img_pattern_match = ImgPatternMatcher::new(image, pattern);
         let matched_pixels:Vec<(u32, u32)> = img_pattern_match.iter().collect();
 
@@ -120,24 +132,24 @@ mod tests {
     #[should_panic]
     fn test_matcher_panic_if_pattern_size_incorrect() {
         let image = generate_image_with_lines();
-        let pattern = Pattern::Line(4, 1, vec![0; 5]);
-        let img_pattern_match = ImgPatternMatcher::new(image, pattern);
+        let pattern = Pattern::Staff(4, 1, vec![0; 5]);
+        ImgPatternMatcher::new(image, pattern);
     }
 
     #[test]
     #[should_panic]
     fn test_matcher_panic_if_pattern_size_greater_than_image_size() {
         let image = generate_image_with_lines();
-        let pattern = Pattern::Line(15, 1, vec![0; 15]);
-        let img_pattern_match = ImgPatternMatcher::new(image, pattern);
+        let pattern = Pattern::Staff(15, 1, vec![0; 15]);
+        ImgPatternMatcher::new(image, pattern);
     }
 
     #[test]
     #[should_panic]
     fn test_matcher_panic_if_pattern_size_is_even() {
         let image = generate_image_with_lines();
-        let pattern = Pattern::Line(4, 2, vec![0; 8]);
-        let img_pattern_match = ImgPatternMatcher::new(image, pattern);
+        let pattern = Pattern::Staff(4, 2, vec![0; 8]);
+        ImgPatternMatcher::new(image, pattern);
     }
 
 
