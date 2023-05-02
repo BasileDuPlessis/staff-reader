@@ -1,35 +1,104 @@
 use image::{ImageBuffer, Luma, GenericImageView};
 
-#[derive(Debug)]
-enum LineDetectError {
-    NoLines,
+
+enum Pattern {
+    Staff(u32, u32, Vec<u8>),
 }
 
+enum MatchingMode {
+    Perfect,
+}
 
+struct ImgPatternMatcher {
+    pattern_width: u32,
+    pattern_height: u32,
+    pattern_vec: Vec<u8>,
+    image: ImageBuffer<Luma<u8>, Vec<u8>>,
+    matching_mode: MatchingMode
+}
 
-fn detect_lines(image: ImageBuffer<Luma<u8>, Vec<u8>>) -> Result<usize, LineDetectError> {
+type Pixel = (u32, u32);
 
-    let image_width = image.width();
-    let image_height = image.height();
-    
-    let pattern_width = image_width / 10;
-    let pattern_height = 1;
-
-    for y in 0..=(image_height-pattern_height) {
-        for x in 0..=(image_width-pattern_width) {
-            match image
-                .view(x, y, pattern_width, pattern_height)
-                .pixels()
-                .find(|(_, _, l)| l.0[0] > 128u8) {
-                    Some(_) => continue,
-                    _ => println!("Black pixel @ x:{}, y:{}", x + pattern_width/2, y),
-                }           
+impl ImgPatternMatcher {
+    fn new(image: ImageBuffer<Luma<u8>, Vec<u8>>, pattern: Pattern) -> ImgPatternMatcher {
+        match pattern {
+            Pattern::Staff(w, h, vec) => {
+                assert!(w * h == vec.len() as u32, "Pattern size do not match pattern content");
+                assert!(w % 2 == 1 && h % 2 == 1, "Pattern width and height should be odd");
+                assert!(image.width() > w && image.height() > h, "Pattern cannot be larger than image");
+                ImgPatternMatcher {
+                    pattern_width: w,
+                    pattern_height: h,
+                    pattern_vec: vec,
+                    image,
+                    matching_mode: MatchingMode::Perfect,
+                }
+            },
+            _ => todo!("Pattern not implemented")
         }        
     }
-    
-
-    Ok(0)
+    fn iter(&self) -> MatchedPixels {
+        MatchedPixels {
+            matcher: self,
+            x: 0,
+            y: 0,
+        }
+    }
 }
+
+struct MatchedPixels<'a> {
+    matcher: &'a ImgPatternMatcher,
+    x: u32,
+    y: u32,
+}
+
+impl<'a> Iterator for MatchedPixels<'a> {
+    type Item = Pixel;
+
+    fn next(&mut self) -> Option<Self::Item> {
+
+        let xmax = self.matcher.image.width() - self.matcher.pattern_width;
+        let ymax = self.matcher.image.height() - self.matcher.pattern_height;
+
+        loop {
+
+            let matched_pixel= match self.matcher.image
+                .view(self.x, self.y, self.matcher.pattern_width, self.matcher.pattern_height)
+                .pixels()
+                .zip(self.matcher.pattern_vec.iter())
+                .find(
+                    |((_, _, subimage_pixel), pattern_pixel)|
+                    match self.matcher.matching_mode {
+                        MatchingMode::Perfect => {
+                            subimage_pixel.0[0] > 128u8 && **pattern_pixel < 128u8
+                            ||
+                            subimage_pixel.0[0] < 128u8 && **pattern_pixel > 128u8 
+                        },
+                    }                    
+                ) {
+                    Some(_) => None,
+                    None => Some((self.x + (self.matcher.pattern_width - 1) / 2, self.y + (self.matcher.pattern_height - 1) / 2)),
+                };
+
+            if self.x == xmax {
+                self.x = 0;
+                if self.y == ymax {
+                    return None;
+                }
+                self.y += 1;
+            } else {
+                self.x += 1;
+            }
+
+            match matched_pixel {
+                None => continue,
+                _ => return matched_pixel,
+            }
+        }
+
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -38,8 +107,8 @@ mod tests {
 
     fn generate_image_with_lines() -> ImageBuffer<Luma<u8>, Vec<u8>>  {
         let mut image = 
-            ImageBuffer::from_fn(50, 10, |x, y|
-                if y==5 {
+            ImageBuffer::from_fn(11, 5, |x, y|
+                if y==2 {
                     image::Luma([0u8])
                 } else {
                     image::Luma([255u8])
@@ -50,11 +119,40 @@ mod tests {
     }
 
     #[test]
-    fn test_detect_one_line() {
+    fn test_iter_on_matcher() {
         let image = generate_image_with_lines();
-        detect_lines(image);
-        //assert_eq!(10, detect_lines(image).unwrap());
+        let pattern = Pattern::Staff(5, 1, vec![0; 5]);
+        let img_pattern_match = ImgPatternMatcher::new(image, pattern);
+        let matched_pixels:Vec<(u32, u32)> = img_pattern_match.iter().collect();
 
+        assert_eq!(vec![(2, 2), (3, 2), (4, 2), (5, 2), (6, 2), (7, 2), (8, 2)], matched_pixels);
     }
+
+    #[test]
+    #[should_panic]
+    fn test_matcher_panic_if_pattern_size_incorrect() {
+        let image = generate_image_with_lines();
+        let pattern = Pattern::Staff(4, 1, vec![0; 5]);
+        ImgPatternMatcher::new(image, pattern);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_matcher_panic_if_pattern_size_greater_than_image_size() {
+        let image = generate_image_with_lines();
+        let pattern = Pattern::Staff(15, 1, vec![0; 15]);
+        ImgPatternMatcher::new(image, pattern);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_matcher_panic_if_pattern_size_is_even() {
+        let image = generate_image_with_lines();
+        let pattern = Pattern::Staff(4, 2, vec![0; 8]);
+        ImgPatternMatcher::new(image, pattern);
+    }
+
+
+
 
 }
