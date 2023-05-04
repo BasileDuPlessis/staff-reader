@@ -67,8 +67,13 @@ impl StaffMatcher {
                 StaffZone::Line(size) => {
                     for staff in &mut staff_arr {
                         match staff.as_slice() {
-                            [.., StaffZone::Line(s), StaffZone::Spacing(_)] if s == size =>
-                                staff.push(zone.clone()),
+                            [.., StaffZone::Line(s), StaffZone::Spacing(_)] => {
+                                if s == size {
+                                    staff.push(zone.clone());
+                                } else {
+                                    log::trace!("Unable to push Line of size: {} in StaffZone made with Line of size: {}", size, s);
+                                }
+                            }   
                             _ => (),
                         }
                     }
@@ -112,6 +117,14 @@ enum StaffMatchError {
 
 #[cfg(test)]
 mod tests {
+
+    fn log_init() {
+        let _ = env_logger::builder()
+            .target(env_logger::Target::Stdout)
+            .filter_level(log::LevelFilter::Trace)
+            .is_test(true)
+            .try_init();
+    }
 
     use super::{StaffMatchError, StaffMatcher, StaffZone};
     
@@ -194,7 +207,6 @@ mod tests {
 
     #[test]
     fn test_staff_matched() {
-    
 
         let mut matcher = StaffMatcher::new(10, 40);
         
@@ -229,6 +241,8 @@ mod tests {
 
     #[test]
     fn test_two_staff_matched() {
+                
+        log_init();
         
         let width = 10;
         let pattern = vec!(-2, 3, -4, 3, -5, 3, -5, 3, -5, 3, -5, 3, -2, -4, 2, -2, 2, -2, 2, -2, 2, -2, 2);
