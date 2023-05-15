@@ -1,7 +1,7 @@
 use image::{ImageBuffer, Luma, GenericImageView};
 
 
-enum Pattern {
+pub enum Pattern {
     Staff(u32, u32, Vec<u8>),
 }
 
@@ -9,7 +9,7 @@ enum MatchingMode {
     Perfect,
 }
 
-struct ImgPatternMatcher<'a> {
+pub struct ImgPatternMatcher<'a> {
     pattern_width: u32,
     pattern_height: u32,
     pattern_vec: Vec<u8>,
@@ -20,7 +20,7 @@ struct ImgPatternMatcher<'a> {
 type Pixel = (u32, u32);
 
 impl<'a> ImgPatternMatcher<'a> {
-    fn new(image: &ImageBuffer<Luma<u8>, Vec<u8>>, pattern: Pattern) -> ImgPatternMatcher {
+    pub fn new(image: &ImageBuffer<Luma<u8>, Vec<u8>>, pattern: Pattern) -> ImgPatternMatcher {
         match pattern {
             Pattern::Staff(w, h, vec) => {
                 assert!(w * h == vec.len() as u32, "Pattern size do not match pattern content");
@@ -37,7 +37,7 @@ impl<'a> ImgPatternMatcher<'a> {
             _ => todo!("Pattern not implemented")
         }        
     }
-    fn iter(&self) -> MatchedPixels {
+    pub fn iter(&self) -> MatchedPixels {
         MatchedPixels {
             matcher: self,
             x: 0,
@@ -46,7 +46,7 @@ impl<'a> ImgPatternMatcher<'a> {
     }
 }
 
-struct MatchedPixels<'a> {
+pub struct MatchedPixels<'a> {
     matcher: &'a ImgPatternMatcher<'a>,
     x: u32,
     y: u32,

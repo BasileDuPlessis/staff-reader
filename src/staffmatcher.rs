@@ -1,33 +1,88 @@
+use log::{trace};
+
 #[derive(Clone, Debug, PartialEq)]
-enum StaffZone {
+enum Area {
     Line(usize),
     Spacing(usize),    
 }
-#[derive(Debug)]
-struct Staff {
-    staff_zones: Vec<StaffZone>,
+#[derive(Debug, Clone)]
+pub struct Staff {
+    areas: Vec<Area>,
+    complete: bool,
+}
+
+enum StaffMatchError {
+    NoMatch,
+    StaffComplete,
+}
+
+impl Staff {
+    fn new(area: &Area) -> Staff {
+        Staff {
+            areas: vec![area.clone()],
+            complete: false,
+        }
+    }
+
+    fn area_size_fit(&self, s_prev: usize, s_to_match: usize) -> bool {
+        s_to_match >= s_prev - 1 && s_to_match <= s_prev + 1
+    }
+
+    fn add_area(&mut self, area_to_match: &Area) -> Result<(), StaffMatchError> {
+
+        if self.complete {
+            return Err(StaffMatchError::StaffComplete);
+        }
+ 
+        let area_slice = self.areas.as_slice();
+
+        match area_to_match {
+            &Area::Line(s1)=> {
+                match area_slice {
+                    [.., Area::Line(s2), Area::Spacing(_)] if self.area_size_fit(*s2, s1) =>
+                        self.areas.push(area_to_match.clone()),
+                    _ => return Err(StaffMatchError::NoMatch),
+                }
+            }
+            &Area::Spacing(s1) => {
+                match area_slice {
+                    [Area::Line(_)] => self.areas.push(area_to_match.clone()),
+                    [.., Area::Spacing(s2), Area::Line(_)] if self.area_size_fit(*s2, s1) =>
+                        self.areas.push(area_to_match.clone()),
+                    _ => return Err(StaffMatchError::NoMatch),
+                }
+            }
+        }
+
+        if self.areas.len() == 9 {
+            self.complete = true;
+        }
+
+        Ok(())
+
+    }
 }
 
 #[derive(Debug)]
-struct StaffMatcher {
+pub struct StaffMatcher {
     width: usize,
     height: usize,
     pixel_arr: Vec<bool>,
-    zone_arr: Vec<StaffZone>,
+    area_vec: Vec<Area>,
 }
 
-struct MatchedStaffs<'a> {
+pub struct MatchedStaffs<'a> {
     matcher: &'a StaffMatcher,
     index: usize,
 }
 
 impl StaffMatcher {
-    fn new(width: usize, height: usize) -> StaffMatcher {
+    pub fn new(width: usize, height: usize) -> StaffMatcher {
         StaffMatcher {
             width,
             height,
             pixel_arr: vec![false; width * height],
-            zone_arr: Vec::new()
+            area_vec: Vec::new()
         }        
     }
 
@@ -36,7 +91,7 @@ impl StaffMatcher {
             panic!("Cannot match Staff on an empty area");
         }
 
-        self.zone_arr = Vec::new();
+        self.area_vec = Vec::new();
 
         let count_true: Vec<usize> = self.pixel_arr
             .chunks(self.width)
@@ -44,21 +99,21 @@ impl StaffMatcher {
             .collect();
 
         for density in count_true.iter() {
-            let last_zone = self.zone_arr.last_mut();
+            let last_zone = self.area_vec.last_mut();
             let is_line = *density * 2 >= self.width;
   
             match last_zone {
-                Some(StaffZone::Line(ref mut line_size)) if is_line => 
+                Some(Area::Line(ref mut line_size)) if is_line => 
                     *line_size += 1,
-                Some(StaffZone::Line(..)) if !is_line => 
-                    self.zone_arr.push(StaffZone::Spacing(1)),
-                Some(StaffZone::Spacing(ref mut spacing_size)) if !is_line => 
+                Some(Area::Line(..)) if !is_line => 
+                    self.area_vec.push(Area::Spacing(1)),
+                Some(Area::Spacing(ref mut spacing_size)) if !is_line => 
                     *spacing_size += 1,
                 _ =>
                     if is_line {
-                        self.zone_arr.push(StaffZone::Line(1));
+                        self.area_vec.push(Area::Line(1));
                     } else {
-                        self.zone_arr.push(StaffZone::Spacing(1))
+                        self.area_vec.push(Area::Spacing(1))
                     },
             }
         };
@@ -66,13 +121,13 @@ impl StaffMatcher {
         self
     }
 
-    fn add_black_pixel(&mut self, x: &usize, y: &usize) {
+    pub fn add_black_pixel(&mut self, x:usize, y:usize) {
         if let Some(pixel) = self.pixel_arr.get_mut(y * self.width + x) {
             *pixel = true;
         }
     }
 
-    fn iter(&mut self) -> MatchedStaffs {
+    pub fn iter(&mut self) -> MatchedStaffs {
         self.prepare();
         MatchedStaffs {
             matcher: self,
@@ -87,54 +142,40 @@ impl<'a> Iterator for MatchedStaffs<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
 
-        let mut zone_iter = self.matcher.zone_arr.iter().skip(self.index);
+        let mut area_iter = self.matcher.area_vec.iter().skip(self.index);
 
-        let mut staff_arr:Vec<Vec<StaffZone>> = Vec::new();
+        let mut staff_vec:Vec<Staff> = Vec::new();
 
-        while let Some(staff_zone) = zone_iter.next()  {
+        while let Some(area) = area_iter.next()  {
             self.index += 1;
-            match staff_zone {
-                StaffZone::Line(size)=> {
-                    staff_arr.iter_mut().for_each(|staff| {
-                        match staff.as_slice() {
-                            [.., StaffZone::Line(s), StaffZone::Spacing(_)] if s == size =>
-                                staff.push(staff_zone.clone()),
-                            _ => (),
-                        }
-                        
-                    });
-                    staff_arr.push(vec!(staff_zone.clone()));                     
-                },
-                StaffZone::Spacing(size) => {
-                    staff_arr.iter_mut().for_each(|staff| {
-                        match staff.as_slice() {
-                            [StaffZone::Line(_)] => staff.push(staff_zone.clone()),
-                            [.., StaffZone::Spacing(s), StaffZone::Line(_)] if s == size =>
-                                staff.push(staff_zone.clone()),
-                            _ => ()
-                        }
-                    });
-                },
-                    }
-            match staff_arr.iter().find(|staff| staff.len() == 9) {
-                Some(vec) => return Some(Staff {
-                    staff_zones: vec.clone()
-                }),
-                None => continue,
+
+            for staff in staff_vec.iter_mut() {
+                
+                match staff.add_area(area) {
+                    Err(StaffMatchError::NoMatch) => log::debug!("Area {:?} do not match staff {:?}", area, staff),
+                    Err(StaffMatchError::StaffComplete) => log::debug!("Area {:?} do not match staff {:?} because it is already complete", area, staff),
+                    _ => log::debug!("Add area {:?} to staff {:?}", area, staff),
+                }
+
+                if staff.complete {
+                    return Some(staff.clone());
                 }
             }
 
+            staff_vec.push(Staff::new(area));
+        }
+
         None
         
-        }
     }
+}
 
 
 
 #[cfg(test)]
 mod tests {
 
-    use super::{StaffMatcher, StaffZone};
+    use super::{StaffMatcher, Area};
     
     fn generate_staff_image(pattern: Vec<i32>, width: usize) 
         -> (Vec<(usize, usize)>, usize) {
@@ -170,19 +211,19 @@ mod tests {
             height
         );
 
-        pixel_arr.iter().for_each(|(x, y)| matcher.add_black_pixel(x, y));
+        pixel_arr.iter().for_each(|(x, y)| matcher.add_black_pixel(*x, *y));
         
         let result = vec!(
-            StaffZone::Spacing(3),
-            StaffZone::Line(7),
-            StaffZone::Spacing(5),
-            StaffZone::Line(6),
-            StaffZone::Spacing(7),
+            Area::Spacing(3),
+            Area::Line(7),
+            Area::Spacing(5),
+            Area::Line(6),
+            Area::Spacing(7),
         );
 
         matcher.prepare();
 
-        assert_eq!(result, matcher.zone_arr);
+        assert_eq!(result, matcher.area_vec);
 
     }
 
@@ -207,7 +248,7 @@ mod tests {
         let mut matcher = StaffMatcher::new(10, 1);
 
         for x in 0..10 {
-            matcher.add_black_pixel(&x, &0);
+            matcher.add_black_pixel(x, 0);
         }
 
         assert_eq!(vec![true; 10], matcher.pixel_arr);      
@@ -229,21 +270,21 @@ mod tests {
             height
         );
 
-        pixel_arr.iter().for_each(|(x, y)| matcher.add_black_pixel(x, y));
+        pixel_arr.iter().for_each(|(x, y)| matcher.add_black_pixel(*x, *y));
         
         let result = vec!(
-            StaffZone::Line(3),
-            StaffZone::Spacing(5),
-            StaffZone::Line(3),
-            StaffZone::Spacing(5),
-            StaffZone::Line(3),
-            StaffZone::Spacing(5),
-            StaffZone::Line(3),
-            StaffZone::Spacing(5),
-            StaffZone::Line(3),
+            Area::Line(3),
+            Area::Spacing(5),
+            Area::Line(3),
+            Area::Spacing(5),
+            Area::Line(3),
+            Area::Spacing(5),
+            Area::Line(3),
+            Area::Spacing(5),
+            Area::Line(3),
             );
 
-        assert_eq!(result, matcher.iter().next().unwrap().staff_zones);
+        assert_eq!(result, matcher.iter().next().unwrap().areas);
 
     }
 
@@ -264,35 +305,35 @@ mod tests {
             height
         );
 
-        pixel_arr.iter().for_each(|(x, y)| matcher.add_black_pixel(x, y));
+        pixel_arr.iter().for_each(|(x, y)| matcher.add_black_pixel(*x, *y));
         
         let mut iter = matcher.iter();
 
-        let staff1 = iter.next().unwrap().staff_zones;
-        let staff2 = iter.next().unwrap().staff_zones;
+        let staff1 = iter.next().unwrap().areas;
+        let staff2 = iter.next().unwrap().areas;
 
         assert_eq!(vec!(
-            StaffZone::Line(3),
-            StaffZone::Spacing(5),
-            StaffZone::Line(3),
-            StaffZone::Spacing(5),
-            StaffZone::Line(3),
-            StaffZone::Spacing(5),
-            StaffZone::Line(3),
-            StaffZone::Spacing(5),
-            StaffZone::Line(3),
+            Area::Line(3),
+            Area::Spacing(5),
+            Area::Line(3),
+            Area::Spacing(5),
+            Area::Line(3),
+            Area::Spacing(5),
+            Area::Line(3),
+            Area::Spacing(5),
+            Area::Line(3),
         ), staff1);
 
         assert_eq!(vec!(
-            StaffZone::Line(2),
-            StaffZone::Spacing(2),
-            StaffZone::Line(2),
-            StaffZone::Spacing(2),
-            StaffZone::Line(2),
-            StaffZone::Spacing(2),
-            StaffZone::Line(2),
-            StaffZone::Spacing(2),
-            StaffZone::Line(2),
+            Area::Line(2),
+            Area::Spacing(2),
+            Area::Line(2),
+            Area::Spacing(2),
+            Area::Line(2),
+            Area::Spacing(2),
+            Area::Line(2),
+            Area::Spacing(2),
+            Area::Line(2),
         ), staff2);
 
     }
@@ -312,7 +353,7 @@ mod tests {
             height
         );
 
-        pixel_arr.iter().for_each(|(x, y)| matcher.add_black_pixel(x, y));
+        pixel_arr.iter().for_each(|(x, y)| matcher.add_black_pixel(*x, *y));
 
         assert!(matcher.iter().next().is_none());
     }
