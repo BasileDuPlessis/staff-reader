@@ -8,11 +8,6 @@ struct Staff {
     staff_zones: Vec<StaffZone>,
 }
 
-#[derive(PartialEq, Debug)]
-enum StaffMatchError {
-    NoMatch,
-}
-
 #[derive(Debug)]
 struct StaffMatcher {
     width: usize,
@@ -139,7 +134,7 @@ impl<'a> Iterator for MatchedStaffs<'a> {
 #[cfg(test)]
 mod tests {
 
-    use super::{Staff, StaffMatchError, StaffMatcher, StaffZone};
+    use super::{StaffMatcher, StaffZone};
     
     fn generate_staff_image(pattern: Vec<i32>, width: usize) 
         -> (Vec<(usize, usize)>, usize) {

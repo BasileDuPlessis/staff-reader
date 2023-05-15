@@ -106,8 +106,8 @@ mod tests {
     use super::*;
 
     fn generate_image_with_lines() -> ImageBuffer<Luma<u8>, Vec<u8>>  {
-        let mut image = 
-            ImageBuffer::from_fn(11, 5, |x, y|
+        let image = 
+            ImageBuffer::from_fn(11, 5, |_, y|
                 if y==2 {
                     image::Luma([0u8])
                 } else {
