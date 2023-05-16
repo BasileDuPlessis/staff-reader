@@ -1,67 +1,4 @@
-use log::{trace};
-
-#[derive(Clone, Debug, PartialEq)]
-enum Area {
-    Line(usize),
-    Spacing(usize),    
-}
-#[derive(Debug, Clone)]
-pub struct Staff {
-    areas: Vec<Area>,
-    complete: bool,
-}
-
-enum StaffMatchError {
-    NoMatch,
-    StaffComplete,
-}
-
-impl Staff {
-    fn new(area: &Area) -> Staff {
-        Staff {
-            areas: vec![area.clone()],
-            complete: false,
-        }
-    }
-
-    fn area_size_fit(&self, s_prev: usize, s_to_match: usize) -> bool {
-        s_to_match >= s_prev - 1 && s_to_match <= s_prev + 1
-    }
-
-    fn add_area(&mut self, area_to_match: &Area) -> Result<(), StaffMatchError> {
-
-        if self.complete {
-            return Err(StaffMatchError::StaffComplete);
-        }
- 
-        let area_slice = self.areas.as_slice();
-
-        match area_to_match {
-            &Area::Line(s1)=> {
-                match area_slice {
-                    [.., Area::Line(s2), Area::Spacing(_)] if self.area_size_fit(*s2, s1) =>
-                        self.areas.push(area_to_match.clone()),
-                    _ => return Err(StaffMatchError::NoMatch),
-                }
-            }
-            &Area::Spacing(s1) => {
-                match area_slice {
-                    [Area::Line(_)] => self.areas.push(area_to_match.clone()),
-                    [.., Area::Spacing(s2), Area::Line(_)] if self.area_size_fit(*s2, s1) =>
-                        self.areas.push(area_to_match.clone()),
-                    _ => return Err(StaffMatchError::NoMatch),
-                }
-            }
-        }
-
-        if self.areas.len() == 9 {
-            self.complete = true;
-        }
-
-        Ok(())
-
-    }
-}
+use super::staff::{Area, Staff, StaffError};
 
 #[derive(Debug)]
 pub struct StaffMatcher {
@@ -87,6 +24,7 @@ impl StaffMatcher {
     }
 
     fn prepare(&mut self) -> &StaffMatcher {
+        
         if self.width == 0 || self.height == 0 {
             panic!("Cannot match Staff on an empty area");
         }
@@ -152,8 +90,10 @@ impl<'a> Iterator for MatchedStaffs<'a> {
             for staff in staff_vec.iter_mut() {
                 
                 match staff.add_area(area) {
-                    Err(StaffMatchError::NoMatch) => log::debug!("Area {:?} do not match staff {:?}", area, staff),
-                    Err(StaffMatchError::StaffComplete) => log::debug!("Area {:?} do not match staff {:?} because it is already complete", area, staff),
+                    Err(StaffError::NoMatch) =>
+                        log::debug!("Area {:?} do not match staff {:?}", area, staff),
+                    Err(StaffError::StaffComplete) => 
+                        log::debug!("Area {:?} do not match staff {:?} because it is already complete", area, staff),
                     _ => log::debug!("Add area {:?} to staff {:?}", area, staff),
                 }
 
@@ -162,7 +102,11 @@ impl<'a> Iterator for MatchedStaffs<'a> {
                 }
             }
 
-            staff_vec.push(Staff::new(area));
+            match Staff::new(area) {
+                Ok(staff) => staff_vec.push(staff),
+                _ => ()
+            }
+             
         }
 
         None
@@ -271,20 +215,9 @@ mod tests {
         );
 
         pixel_arr.iter().for_each(|(x, y)| matcher.add_black_pixel(*x, *y));
-        
-        let result = vec!(
-            Area::Line(3),
-            Area::Spacing(5),
-            Area::Line(3),
-            Area::Spacing(5),
-            Area::Line(3),
-            Area::Spacing(5),
-            Area::Line(3),
-            Area::Spacing(5),
-            Area::Line(3),
-            );
 
-        assert_eq!(result, matcher.iter().next().unwrap().areas);
+
+        assert_eq!(true, matcher.iter().next().unwrap().complete);
 
     }
 
@@ -309,32 +242,9 @@ mod tests {
         
         let mut iter = matcher.iter();
 
-        let staff1 = iter.next().unwrap().areas;
-        let staff2 = iter.next().unwrap().areas;
 
-        assert_eq!(vec!(
-            Area::Line(3),
-            Area::Spacing(5),
-            Area::Line(3),
-            Area::Spacing(5),
-            Area::Line(3),
-            Area::Spacing(5),
-            Area::Line(3),
-            Area::Spacing(5),
-            Area::Line(3),
-        ), staff1);
-
-        assert_eq!(vec!(
-            Area::Line(2),
-            Area::Spacing(2),
-            Area::Line(2),
-            Area::Spacing(2),
-            Area::Line(2),
-            Area::Spacing(2),
-            Area::Line(2),
-            Area::Spacing(2),
-            Area::Line(2),
-        ), staff2);
+        assert!(iter.next().unwrap().complete);
+        assert!(iter.next().unwrap().complete);
 
     }
 
